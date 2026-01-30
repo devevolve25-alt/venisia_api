@@ -1,3 +1,16 @@
+import os
+import sys
+# Garante que o Python encontre os arquivos na pasta api
+sys.path.append(os.path.join(os.path.dirname(__file__)))
+
+from fastapi import FastAPI, Depends, HTTPException
+from sqlalchemy.orm import Session
+from typing import List
+
+# Importação direta (sem o ponto se o sys.path.append estiver lá)
+import models, schemas, database, ai_service
+from database import engine, get_db
+
 from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List
