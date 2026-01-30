@@ -4,33 +4,34 @@ from typing import List
 from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-# 1. Ajuste de caminho para a Vercel encontrar os módulos locais
+# 1. AJUSTE DE CAMINHO (O "Pulo do Gato" para a Vercel)
+# Isso permite que os arquivos dentro da pasta 'api' se enxerguem
 current_dir = os.path.dirname(__file__)
 if current_dir not in sys.path:
-    sys.path.append(current_dir)
+    sys.path.insert(0, current_dir)
 
-# 2. Importações dos módulos locais (agora padronizadas)
+# 2. IMPORTAÇÕES DOS MÓDULOS LOCAIS (Sem pontos, graças ao sys.path)
 import models
 import schemas
 import database
 import ai_service
 from database import engine, get_db
 
-# 3. Inicialização do Banco de Dados
-# O try/except evita que a API caia se o banco demorar a conectar
+# 3. INICIALIZAÇÃO DO BANCO
 try:
     models.Base.metadata.create_all(bind=engine)
 except Exception as e:
     print(f"Erro ao conectar no banco/criar tabelas: {e}")
 
-# 4. Configuração do App
+# 4. CONFIGURAÇÃO DA API
 app = FastAPI(title="Vendisia API")
 
 @app.get("/")
 def home():
     return {
         "status": "Panteão Online",
-        "mensagem": "Bem-vindo à API Vendisia"
+        "database": "Conectado",
+        "docs": "/docs"
     }
 
 # --- ROTAS DE USUÁRIO ---
@@ -58,7 +59,7 @@ def cadastrar_usuario(usuario: schemas.UserCreate, db: Session = Depends(get_db)
 def listar_usuarios(db: Session = Depends(get_db)):
     return db.query(models.User).all()
 
-# --- ROTA DA IA ---
+# --- ROTA DA IA (ORÁCULO) ---
 
 @app.get("/ia/consulta")
 def consultar_oraculo(pergunta: str, db: Session = Depends(get_db)):
