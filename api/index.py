@@ -19,7 +19,7 @@ from database import engine, get_db
 # 3. Inicialização do Banco de Dados
 # O try/except evita que a API caia se o banco demorar a conectar
 try:
- #   models.Base.metadata.create_all(bind=engine)
+    models.Base.metadata.create_all(bind=engine)
 except Exception as e:
     print(f"Erro ao conectar no banco/criar tabelas: {e}")
 
