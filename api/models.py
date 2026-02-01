@@ -32,6 +32,10 @@ class LeadData(Base):
     __tablename__ = "leads_data"
     id = Column(UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()"))
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"))
+    nome_cliente = Column(String)
+    email = Column(String)
+    telefone = Column(String)
+    site_url = Column(String)
     empresa_nome = Column(String)
     setor_atuacao = Column(String)
     dor_principal = Column(String)
