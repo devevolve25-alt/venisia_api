@@ -74,10 +74,9 @@ class UsageRecord(Base):
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"))
     entidade = Column(String, nullable=False)
     tipo_acao = Column(String, nullable=False)
-    categoria_uso = Column(String, nullable=False) # CORE ou ADDON
+    categoria_uso = Column(String, nullable=False) 
     tokens_estimados = Column(Integer, default=0)
     creditos_debitados = Column(Integer, default=0)
-    # ALTERADO: metadata é reservado no SQLAlchemy. Usando 'details' no lugar.
     details = Column(JSONB) 
     created_at = Column(TIMESTAMP(timezone=True), server_default=text("now()"))
 
