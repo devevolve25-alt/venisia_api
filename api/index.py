@@ -1,6 +1,7 @@
 import os
 import sys
-from typing import List
+from typing import List, Optional
+from uuid import UUID
 from fastapi import FastAPI, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from datetime import datetime
@@ -41,12 +42,11 @@ def cadastrar_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
     if db_user:
         raise HTTPException(status_code=400, detail="E-mail já cadastrado!")
     
-    # Criando com os novos campos de negócio do ENAS
     novo_user = models.User(
         email=user.email,
         nome=user.nome,
-        hashed_password=user.password, # Lembre-se de usar hash real no futuro
-        plan_level=0, # Começa como Lead
+        hashed_password=user.password, 
+        plan_level=0, 
         plan_name="Lead",
         status_pagamento="pendente"
     )
@@ -64,37 +64,60 @@ def cadastrar_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
 def listar_users(db: Session = Depends(get_db)):
     return db.query(models.User).all()
 
-# --- ROTA DE INTELIGÊNCIA COM TRAVA DE CRÉDITOS ---
+# --- ROTAS DE INTELIGÊNCIA E DADOS (MERCURIA, EXPLORIA, ENAS) ---
+
+@app.post("/leads/", response_model=schemas.LeadDataSchema)
+def salvar_lead(lead: schemas.LeadDataSchema, user_id: UUID, db: Session = Depends(get_db)):
+    novo_lead = models.LeadData(**lead.dict(), user_id=user_id)
+    try:
+        db.add(novo_lead)
+        db.commit()
+        db.refresh(novo_lead)
+        return novo_lead
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Erro ao salvar lead: {e}")
+
+@app.post("/diagnostics/", response_model=schemas.DiagnosticSchema)
+def salvar_diagnostico(diag: schemas.DiagnosticSchema, user_id: UUID, db: Session = Depends(get_db)):
+    novo_diag = models.Diagnostic(**diag.dict(), user_id=user_id)
+    try:
+        db.add(novo_diag)
+        db.commit()
+        db.refresh(novo_diag)
+        return novo_diag
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Erro ao salvar diagnóstico: {e}")
+
+# --- ROTA DE PROCESSAMENTO IA COM TAXÍMETRO ---
 
 @app.post("/ia/processar")
 def processar_ia(
-    user_id: str, 
-    entidade: str, # 'MercurIA', 'ExplorIA', 'CriarIA'
+    user_id: UUID, 
+    entidade: str, 
     pergunta: str, 
     db: Session = Depends(get_db)
 ):
-    # 1. Buscar usuário e verificar permissões
     user = db.query(models.User).filter(models.User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="Usuário não encontrado.")
 
-    # 2. Lógica de Bloqueio Baseada no Relatório do ENAS
+    # Lógica de Bloqueio (ENAS Strategy)
+    custo_acao = 0
     if entidade == "CriarIA":
         if user.criaria_tokens <= 0:
-            raise HTTPException(status_code=402, detail="Saldo de créditos da CriarIA insuficiente.")
-        custo_acao = 1 # Definido pelo ENAS
-    else:
-        # MercurIA e ExplorIA rodam sob Assinatura
+            raise HTTPException(status_code=402, detail="Saldo insuficiente na CriarIA.")
+        custo_acao = 1
+    elif entidade == "MercurIA":
         if user.status_pagamento != "pago" and user.plan_level == 0:
-            # Leads podem usar a ExplorIA 1 vez (exemplo de regra)
-            pass 
-        custo_acao = 0
+            # Futura lógica de limite para Leads aqui
+            pass
 
     try:
-        # 3. Chamar a IA
         resposta = ai_service.perguntar_ao_panteao(pergunta, user.nome)
 
-        # 4. Registrar o Uso (O Taxímetro)
+        # Registro de Uso
         log_uso = models.UsageRecord(
             user_id=user.id,
             entidade=entidade,
@@ -104,32 +127,28 @@ def processar_ia(
         )
         db.add(log_uso)
 
-        # 5. Debitar saldo se for CriarIA
         if entidade == "CriarIA":
             user.criaria_tokens -= custo_acao
-        
-        # 6. Incrementar uso justo da MercurIA
         if entidade == "MercurIA":
             user.mercuria_usage_counter += 1
 
         db.commit()
         return {"resposta": resposta, "saldo_restante": user.criaria_tokens}
-
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=500, detail=f"Erro no processamento: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Erro IA: {str(e)}")
 
-# --- ROTA PARA ATUALIZAR PAGAMENTOS (Pelo n8n ou Checkout) ---
+# --- FINANCEIRO E PAGAMENTOS ---
 
 @app.patch("/users/{user_id}/payment")
-def atualizar_assinatura(user_id: str, plano: str, tokens: int = 0, db: Session = Depends(get_db)):
+def atualizar_assinatura(user_id: UUID, plano: str, tokens: int = 0, db: Session = Depends(get_db)):
     user = db.query(models.User).filter(models.User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="Usuário inexistente.")
     
     user.plan_name = plano
     user.status_pagamento = "pago"
-    user.criaria_tokens += tokens # Adiciona créditos se for compra de Add-on
+    user.criaria_tokens += tokens 
     
     db.commit()
-    return {"status": "Perfil atualizado com sucesso", "novo_saldo": user.criaria_tokens}
+    return {"status": "Pagamento processado", "novo_saldo": user.criaria_tokens}
