@@ -77,7 +77,8 @@ class UsageRecord(Base):
     categoria_uso = Column(String, nullable=False) # CORE ou ADDON
     tokens_estimados = Column(Integer, default=0)
     creditos_debitados = Column(Integer, default=0)
-    metadata = Column(JSONB)
+    # ALTERADO: metadata é reservado no SQLAlchemy. Usando 'details' no lugar.
+    details = Column(JSONB) 
     created_at = Column(TIMESTAMP(timezone=True), server_default=text("now()"))
 
 class FinancialTransaction(Base):
